@@ -72,7 +72,11 @@ void exec_gxi(char *gsi,
 }
 
 void gxi_setenv(char *gerbil_home) {
+#ifdef _WIN32
+  _putenv_s("GERBIL_HOME", gerbil_home);
+#else
   setenv("GERBIL_HOME", gerbil_home, 1);
+#endif
 }
 
 char **gxi_argv(char *gerbil_home, char *runtime_opts, int argc, char **argv) {
