@@ -2,6 +2,9 @@
 // gxi was originally a shell script, but we've had it with the shebang madness in the
 //  various unix variants, so I wrote this.
 // © vyzo
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -67,13 +70,60 @@ void exec_gxi(char *gsi,
               int argc, char **argv) {
   char **gsi_argv = gxi_argv(gerbil_home, runtime_opts, argc, argv);
   gxi_setenv(gerbil_home);
+#ifdef _WIN32
+  {
+    char cmd[512] = {0};
+    DWORD ec;
+
+    strcpy(cmd, gsi);
+    for (char **nargs = gsi_argv + 1; *nargs; nargs++) {
+      strcat(cmd, " ");
+      strcat(cmd, *nargs);
+    }
+
+    STARTUPINFO si;
+    PROCESS_INFORMATION pi;
+
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+
+    // Start the child process.
+    if (!CreateProcessA(NULL,
+                       cmd,
+                       NULL,
+                       NULL,
+                       FALSE,
+                       0,
+                       NULL,
+                       NULL,
+                       &si,
+                       &pi)
+    )
+    {
+      printf("CreateProcess failed (%d).\n", GetLastError());
+      return;
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    GetExitCodeProcess(pi.hProcess, &ec);
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    exit((int)ec);
+  }
+#else
   execvp(gsi, gsi_argv);
   perror("execvpe");
+#endif
 }
 
 void gxi_setenv(char *gerbil_home) {
 #ifdef _WIN32
-  _putenv_s("GERBIL_HOME", gerbil_home);
+  if(!SetEnvironmentVariableA("GERBIL_HOME", gerbil_home)) {
+    printf("Set environment failed %d\n", GetLastError());
+  }
 #else
   setenv("GERBIL_HOME", gerbil_home, 1);
 #endif
